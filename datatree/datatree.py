@@ -30,6 +30,7 @@ from xarray.core.dataset import Dataset, DataVariables
 from xarray.core.indexes import Index, Indexes
 from xarray.core.merge import dataset_update_method
 from xarray.core.options import OPTIONS as XR_OPTS
+from xarray.core.types import Self
 from xarray.core.utils import (
     Default,
     Frozen,
@@ -1184,6 +1185,26 @@ class DataTree(
             node.path: node.ds for node in self.subtree if filterfunc(node)
         }
         return DataTree.from_dict(filtered_nodes, name=self.root.name)
+
+    def filter_by_name(self: Self, pattern: str) -> Self:
+        def get_by_pattern(dt: Self, pattern: str) -> Self:
+            """Get a datatree where the name matches the pattern."""
+            import fnmatch
+
+            match = fnmatch.filter(dt.variables.keys(), pattern)
+            return dt.get(match)
+
+        def is_empty_leaf(dt: Self) -> bool:
+            """Datatree leafs have no data."""
+            return dt.has_data and dt.is_leaf
+
+        # Get only variables matching the pattern:
+        dt_f = self.map_over_subtree(get_by_pattern, pattern=pattern)
+
+        # Remove empty datatrees:
+        out = dt_f.filter(is_empty_leaf)
+
+        return out
 
     def map_over_subtree(
         self,
